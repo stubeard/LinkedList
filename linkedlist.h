@@ -7,12 +7,11 @@
 #include <pthread.h>
 #include <semaphore.h>
 #include <stdbool.h>
-#include <errno.h>
 
 /*
  *  Title:   linkedlist.h
  *  Author:  Stu Beard
- *  Version: 01.0
+ *  Version: 01.1
  */
 
 /*
@@ -43,27 +42,25 @@ typedef struct linkedlist_##suffix##_t\
  *  Returns a formatted string represention of an item.
  *  
  *  Parameters:
- *      *list   a pointer to the linkedlist_##suffix##_t.
  *      *buffer a pointer to a buffer to hold the formatted string. 
  *      *data   a ponter to the item to be formatted.
  *
  *  Returns:    a bool indicating whether the item was inserted successfully.
  *
  */\
-typedef char *linkedlist_format_##suffix##_t( linkedlist_##suffix##_t *list, char *buffer, type* data );\
+typedef char *linkedlist_format_##suffix##_t( char *buffer, type* data );\
 /*
  *  Function Type:   linkedlist_compare_##suffix##_t
  *  ------------------------------------------------
  *  Compares 2 items,
  *  
  *  Parameters:
- *      *list   a pointer to the linkedlist_##suffix##_t.
  *      *data1  a ponter to the first item to be compared.
  *      *data2  a ponter to the second item to be compared.
  *
  *  Returns:    -1 if data1<data2, 1 if data1>data2, and 0 if data1-data2,
  *
- */typedef int linkedlist_compare_##suffix##_t( linkedlist_##suffix##_t *list, type *data1, type *data2 );\
+ */typedef int linkedlist_compare_##suffix##_t( type *data1, type *data2 );\
 /*
  *  Function:   linkedlist_initialise_##suffix
  *  ------------------------------------------
@@ -285,11 +282,6 @@ bool linkedlist_insert_##suffix( linkedlist_##suffix##_t *list, unsigned int ind
             sem_post( &list->mutex );\
             return true;\
         }\
-        else\
-        {\
-            sem_post( &list->mutex );\
-            return errno;\
-        }\
         sem_post( &list->mutex );\
     }\
     return false;\
@@ -314,7 +306,7 @@ void linkedlist_print_##suffix( linkedlist_##suffix##_t *list, linkedlist_format
         char buffer[ 256 ];\
         while( node_ptr )\
         {\
-            printf( "%s", linkedlist_format_fn( list, buffer, &node_ptr->data ) );\
+            printf( "%s", linkedlist_format_fn( buffer, &node_ptr->data ) );\
             node_ptr = node_ptr->next;\
             if( node_ptr )\
             {\
@@ -367,15 +359,16 @@ void linkedlist_reverse_##suffix( linkedlist_##suffix##_t *list )\
  *  Compares the contents of two linkedlist_##suffix lists.
  *  
  *  Parameters:
- *      *list1  a pointer to the first linkedlist_##suffix##_t to be compared.
- *      *list2  a pointer to the second linkedlist_##suffix##_t to be compared.
+ *      *list1                  a pointer to the first linkedlist_##suffix##_t to be compared.
+ *      *list2                  a pointer to the second linkedlist_##suffix##_t to be compared.
+ *      linkedlist_compare_fn   a pointer to a function which compares 2 items.
  *
  *  Returns:    true if the contents of the linked list are identical, false otherwise.
  *
  */\
-bool linkedlist_compare_##suffix( linkedlist_##suffix##_t *list1, linkedlist_##suffix##_t *list2 )\
+bool linkedlist_compare_##suffix( linkedlist_##suffix##_t *list1, linkedlist_##suffix##_t *list2, linkedlist_compare_##suffix##_t linkedlist_compare_fn )\
 {\
-    if( ( list1 ) && ( list2 ) )\
+    if( ( list1 ) && ( list2 ) && ( linkedlist_compare_fn ) )\
     {\
         sem_wait( &list1->mutex );\
         sem_wait( &list2->mutex );\
@@ -383,9 +376,8 @@ bool linkedlist_compare_##suffix( linkedlist_##suffix##_t *list1, linkedlist_##s
         node_##suffix##_t **list2_node_ptr_ptr = &list2->first;\
         while( ( *list1_node_ptr_ptr ) && ( *list2_node_ptr_ptr ) )\
         {\
-            if( memcmp( &(*list1_node_ptr_ptr)->data,\
-                        &(*list2_node_ptr_ptr)->data,\
-                        sizeof( type ) ) )\
+            if( linkedlist_compare_fn( &(*list1_node_ptr_ptr)->data,\
+                                       &(*list2_node_ptr_ptr)->data ) )\
             {\
                 sem_post( &list2->mutex );\
                 sem_post( &list1->mutex );\
@@ -427,7 +419,7 @@ void linkedlist_sort_##suffix( linkedlist_##suffix##_t *list, linkedlist_compare
         node_##suffix##_t **node_ptr_ptr = &list->first;\
         while( ( *node_ptr_ptr ) && ( *node_ptr_ptr )->next )\
         {\
-            if( linkedlist_compare_fn( list, &(*node_ptr_ptr)->data, &(*node_ptr_ptr)->next->data) > 0 )\
+            if( linkedlist_compare_fn( &(*node_ptr_ptr)->data, &(*node_ptr_ptr)->next->data) > 0 )\
             {\
                node_##suffix##_t *node1 = (*node_ptr_ptr)->next;\
                node_##suffix##_t *node2 = (*node_ptr_ptr)->next->next;\
